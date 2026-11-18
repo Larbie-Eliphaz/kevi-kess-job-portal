@@ -1,9 +1,9 @@
-require('dotenv').config();
 const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 const express = require('express');
-const mongoose = require('mongoose');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { query, initializeSchema } = require('./db');
 
 const adminAuth = require('./middleware/adminAuth');
 const publicRoutes = require('./routes/public');
@@ -11,13 +11,11 @@ const adminRoutes = require('./routes/admin');
 const marketplaceRoutes = require('./routes/marketplace');
 
 const PORT = process.env.PORT || 3000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/kevi_kess';
 
 const app = express();
 if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
 
-// CSP is off because the site uses inline scripts/styles.
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet());
 app.use(express.json({ limit: '20kb' }));
 
 // Admin sign-in uses a revocable, HttpOnly session cookie so the dashboard can sign out.
@@ -30,9 +28,6 @@ app.post('/api/admin/login', rateLimit({
 }), adminAuth.login);
 app.post('/api/admin/logout', adminAuth.logout);
 app.use('/api/admin', adminAuth.requireAdmin, adminRoutes);
-app.get('/admin/login', (req, res) => res.sendFile(path.join(__dirname, 'admin', 'login.html')));
-app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin', 'admin.html')));
-
 // Account creation and login are rate limited separately from marketplace browsing.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -55,34 +50,39 @@ const formLimiter = rateLimit({
 });
 app.use('/api', formLimiter, publicRoutes);
 
-app.get('/health', (req, res) => {
-  res.json({ ok: true, db: mongoose.connection.readyState === 1 });
+app.get('/health', async (req, res, next) => {
+  try {
+    await query('SELECT 1 AS connected');
+    res.json({ ok: true, db: true });
+  } catch (err) {
+    next(err);
+  }
 });
-
-app.get(['/portal', '/jobs'], (req, res) => res.sendFile(path.join(__dirname, 'public', 'portal.html')));
-
-// The website Homepage
-app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
 
 // Error handler
 app.use((err, req, res, next) => {
   if (err.type === 'entity.parse.failed') return res.status(400).json({ success: false, errors: ['Invalid JSON.'] });
-  if (err.code === 11000) return res.status(409).json({ error: 'This record already exists.' });
-  if (err.name === 'ValidationError') {
-    return res.status(400).json({ success: false, errors: Object.values(err.errors).map((e) => e.message) });
-  }
+  if ([2601, 2627].includes(err.number)) return res.status(409).json({ error: 'This record already exists.' });
   console.error(err);
   res.status(500).json({ success: false, errors: ['Server error. Please try again.'] });
 });
 
-mongoose.connect(MONGODB_URI)
+const frontendDist = path.resolve(__dirname, '..', 'frontend', 'dist');
+app.use(express.static(frontendDist));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(frontendDist, 'index.html'), (err) => {
+    if (err) res.status(503).send('Frontend is not built. Run npm run build first.');
+  });
+});
+
+initializeSchema()
   .then(() => {
-    console.log('MongoDB connected:', MONGODB_URI);
+    console.log(`SQL Server connected: ${process.env.SQL_SERVER || 'localhost'}/${process.env.SQL_DATABASE || 'kevi_kess'}`);
     app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
   })
   .catch((err) => {
-    console.error('Could not connect to MongoDB. Is mongod running?\n', err.message);
+    console.error('Could not connect to SQL Server or initialize the database schema.\n', err);
     process.exit(1);
   });

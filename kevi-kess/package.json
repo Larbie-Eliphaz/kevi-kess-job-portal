@@ -1,11 +1,13 @@
 {
   "name": "kevi-kess-staffing",
   "version": "1.0.0",
-  "description": "Express + MongoDB backend for the Kevi Kess Resources staffing website",
-  "main": "server.js",
+  "description": "React and Express job portal for Kevi Kess Resources",
+  "main": "backend/server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js"
+    "start": "node backend/server.js",
+    "dev:backend": "node --watch backend/server.js",
+    "dev:frontend": "vite frontend --config frontend/vite.config.mjs",
+    "build": "vite build frontend --config frontend/vite.config.mjs"
   },
   "engines": { "node": ">=18" },
   "dependencies": {
@@ -13,6 +15,13 @@
     "express": "^4.19.2",
     "express-rate-limit": "^7.4.0",
     "helmet": "^7.1.0",
-    "mongoose": "^8.5.0"
+    "mssql": "^11.0.1",
+    "msnodesqlv8": "^5.1.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^6.4.1"
   }
 }

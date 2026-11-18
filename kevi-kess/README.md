@@ -1,62 +1,33 @@
-# Kevi Kess Staffing – Node/Express + MongoDB
+# Kevi Kess Resources
 
-## Setup
-1. Install Node 18+ and MongoDB (local or hosted).
-2. In this folder:
-   ```
-   npm install
-   ```
-3. Copy `.env.example` to `.env`. Set a strong, unique `ADMIN_PASSWORD` and configure `MONGODB_URI`.
-4. Start MongoDB (`mongod`, or the MongoDB service), then:
-   ```
-   npm start
-   ```
-5. Open http://localhost:3000 (website), http://localhost:3000/portal (jobs and accounts), and http://localhost:3000/admin (admin dashboard). Sign in to the dashboard with `ADMIN_USER` and `ADMIN_PASSWORD` from `.env`.
+The project is split into a React frontend and an Express/Microsoft SQL Server backend:
 
-Use HTTPS in production; session cookies are marked `Secure` when `NODE_ENV=production`. Set `TRUST_PROXY=1` only when deployed behind a trusted reverse proxy.
+- `frontend/` contains the Vite/React application.
+- `backend/` contains the Express server, SQL queries, database schema, API routes, and authentication middleware.
 
-## What gets saved (database `kevi_kess`)
-| Form | Endpoint | Collection |
-|------|----------|------------|
-| "I'm looking for a job" | `POST /api/candidates` | `candidates` |
-| "I need workers" | `POST /api/employers` | `employers` |
+## Development
 
-Each record stores the form fields, `status`, admin `notes`, `createdAt/updatedAt`, and the submitter's IP and user agent.
+1. Install Node.js 18+, Microsoft SQL Server, and ODBC Driver 18 for SQL Server.
+2. Run `npm install`.
+3. Create an empty database named `kevi_kess` in SQL Server.
+4. Copy `.env.example` to `.env` (or update your existing `.env`). Configure `SQL_SERVER`, `SQL_DATABASE`, and optional `SQL_INSTANCE_NAME`; the backend uses Windows integrated authentication for the Windows account running Node. Set `ADMIN_USER` and a strong `ADMIN_PASSWORD`.
+5. In one terminal run `npm run dev:backend`.
+6. In another terminal run `npm run dev:frontend`.
+7. Open the Vite URL shown in the frontend terminal (normally http://localhost:5173).
 
-## Candidate and employer portal
-- Candidate and employer accounts register with an email and password (minimum 10 characters). Passwords are stored as scrypt hashes; sessions use random, hashed, expiring tokens in HttpOnly cookies.
-- Candidates can maintain their profile, search and filter open jobs, apply once per job, track application status, and withdraw applications.
-- Employers can maintain company profiles, post/open/close jobs, view applicants and candidate profiles, and update application status.
-- Both account types can see in-app notifications for application events. No email delivery service is required.
-- Register and sign-in endpoints have a separate rate limit of 10 requests per 15 minutes per IP. Public enquiry forms retain their 15-per-15-minute limit.
+Vite proxies `/api` requests to the Express server on port 3000. Alternatively, use `npm run build` and `npm start` to serve the built React app from Express at http://localhost:3000.
+On startup, the backend creates any missing application tables and indexes. The Windows account running Node must have permission to connect to the database and create these objects. For production SQL Server instances, configure a trusted certificate instead of enabling `SQL_TRUST_SERVER_CERTIFICATE`.
+This setup starts with an empty SQL database; it does not copy records from the previous MongoDB database. Existing MongoDB data is left untouched.
 
-## Marketplace API
-- `POST /api/auth/register` – `{ "email", "password", "role": "candidate"|"employer", "fullName"|"companyName", "phone" }`
-- `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
-- `PATCH /api/auth/profile`, `PATCH /api/auth/password` – update account details or change the password
-- `GET /api/jobs?q=&location=&sector=&type=&page=&limit=` and `GET /api/jobs/:id`
-- Candidate: `POST /api/jobs/:id/applications`, `GET /api/candidate/applications`, `PATCH /api/candidate/applications/:id` (withdraw)
-- Employer: `GET|POST /api/employer/jobs`, `PATCH|DELETE /api/employer/jobs/:id`, `GET /api/employer/jobs/:jobId/applications`, `PATCH /api/employer/applications/:id`
-- Notifications: `GET /api/notifications`, `PATCH /api/notifications/:id/read`
+## Existing API
 
-Job applications are retained when a job closes. A job with applications cannot be deleted, preserving its history. Each account can access only its own profile, jobs, applications, and notifications.
+The backend API remains available under `/api`. The React portal uses the existing account, job, application, notification, enquiry, and admin endpoints. `GET /health` reports server and SQL Server status.
 
-## Admin (session sign-in, credentials from `.env`)
-- `GET /admin` – live dashboard for candidate/employer enquiries, marketplace accounts, jobs, and applications; refreshes database data every 30 seconds.
-- `GET /admin/login` – admin sign-in page
-- `POST /api/admin/login` – `{ "username": "...", "password": "..." }`; creates an eight-hour HttpOnly session.
-- `POST /api/admin/logout` – revoke the current session and sign out.
-- `GET /api/admin/stats` – enquiry counts, candidate/employer account counts, jobs, open jobs, and applications.
-- `GET /api/admin/candidates|employers?status=&q=&page=&limit=`
-- `GET /api/admin/accounts?role=&q=&page=&limit=`
-- `GET /api/admin/jobs?status=&q=&page=&limit=`
-- `PATCH /api/admin/jobs/:id` – `{ "status": "open"|"closed" }`
-- `GET /api/admin/applications?status=&page=&limit=`
-- `PATCH /api/admin/applications/:id` – `{ "status": "..." }`
-- `PATCH /api/admin/candidates|employers/:id` – `{ "status": "...", "notes": "..." }`
-- `DELETE /api/admin/candidates|employers/:id`
+Public enquiry form endpoints are rate limited to 15 requests per 15 minutes per IP. Account and admin sign-in endpoints have separate limits. In production, use HTTPS; session cookies are marked `Secure` when `NODE_ENV=production`. Set `TRUST_PROXY=1` only when deployed behind a trusted reverse proxy.
 
-## Other
-- `GET /health` – server and DB status
-- Public form endpoints are rate limited to 15 requests per 15 minutes per IP.
-- Inspect data directly: `mongosh kevi_kess` then `db.candidates.find()`.
+## Main pages
+
+- `/` – public website and candidate/employer enquiry forms
+- `/portal` – job search, candidate accounts, and employer workspace
+- `/admin/login` – admin sign in
+- `/admin` – admin dashboard for enquiries and marketplace activity

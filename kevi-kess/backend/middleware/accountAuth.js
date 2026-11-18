@@ -1,6 +1,5 @@
 const crypto = require('crypto');
-const Session = require('../models/Session');
-const Account = require('../models/Account');
+const { query } = require('../db');
 
 const COOKIE_NAME = 'kk_session';
 const SESSION_DAYS = 7;
@@ -25,7 +24,10 @@ function clearCookie(res) {
 async function createSession(account, res) {
   const token = crypto.randomBytes(32).toString('base64url');
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000);
-  await Session.create({ account: account._id, tokenHash: hashToken(token), expiresAt });
+  await query(`
+    INSERT INTO dbo.Sessions (AccountId, TokenHash, ExpiresAt)
+    VALUES (@accountId, @tokenHash, @expiresAt)
+  `, { accountId: account._id, tokenHash: hashToken(token), expiresAt });
   setCookie(res, token);
 }
 
@@ -33,19 +35,23 @@ async function requireAuth(req, res, next) {
   try {
     const token = getToken(req);
     if (!token) return res.status(401).json({ error: 'Please sign in to continue.' });
-    const session = await Session.findOne({ tokenHash: hashToken(token), expiresAt: { $gt: new Date() } });
+    const result = await query(`
+      SELECT TOP (1) s.Id AS sessionId, a.Id AS _id, a.Email AS email, a.Role AS role,
+        a.FullName AS fullName, a.Phone AS phone, a.Location AS location,
+        a.Skills AS skills, a.Experience AS experience, a.CompanyName AS companyName,
+        a.CompanyDescription AS companyDescription, a.CompanyWebsite AS companyWebsite
+      FROM dbo.Sessions s
+      INNER JOIN dbo.Accounts a ON a.Id = s.AccountId
+      WHERE s.TokenHash = @tokenHash AND s.ExpiresAt > SYSUTCDATETIME()
+    `, { tokenHash: hashToken(token) });
+    const session = result.recordset[0];
     if (!session) {
       clearCookie(res);
       return res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
     }
-    const account = await Account.findById(session.account).select('_id email role fullName phone location skills experience companyName companyDescription companyWebsite');
-    if (!account) {
-      await Session.deleteOne({ _id: session._id });
-      clearCookie(res);
-      return res.status(401).json({ error: 'Account not found. Please sign in again.' });
-    }
+    const { sessionId, ...account } = session;
     req.account = account;
-    req.sessionId = session._id;
+    req.sessionId = sessionId;
     next();
   } catch (err) {
     next(err);
