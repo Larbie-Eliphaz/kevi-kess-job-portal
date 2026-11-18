@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin sign in | Kevi Kess</title>
+<style>
+:root{--navy:#0f2747;--gold:#c9a227;--line:#dde3ec;--ink:#1b2433}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;background:#f4f6fa;color:var(--ink);font:15px/1.5 system-ui,sans-serif}.card{width:min(420px,100%);background:#fff;border:1px solid var(--line);border-radius:12px;padding:28px;box-shadow:0 12px 35px #0f274710}h1{margin:0;color:var(--navy);font-size:22px}h1 span{color:var(--gold)}p{color:#657185}.field{display:grid;gap:6px;margin:16px 0}.field label{font-weight:650}.field input{font:inherit;padding:11px 12px;border:1px solid #cbd4e0;border-radius:7px}.button{width:100%;padding:11px 14px;border:0;border-radius:7px;background:var(--navy);color:white;font:inherit;font-weight:700;cursor:pointer}.button:disabled{opacity:.6;cursor:wait}.error{min-height:1.5em;color:#a22235;margin:10px 0}.back{display:inline-block;margin-top:16px;color:var(--navy)}
+</style>
+</head>
+<body>
+<main class="card"><h1>KEVI KESS <span>Admin</span></h1><p>Sign in to manage staffing enquiries and marketplace activity.</p>
+<form id="login"><div class="field"><label for="username">Username</label><input id="username" name="username" autocomplete="username" required></div>
+<div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>
+<div id="error" class="error" role="alert"></div><button id="submit" class="button" type="submit">Sign in</button></form>
+<a class="back" href="/">← Back to website</a></main>
+<script>
+const form=document.getElementById('login');
+form.onsubmit=async event=>{event.preventDefault();const button=document.getElementById('submit');const error=document.getElementById('error');button.disabled=true;error.textContent='';try{const response=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(form)))});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||`Sign in failed (${response.status}).`);location.replace('/admin')}catch(err){error.textContent=err.message}finally{button.disabled=false}};
+</script>
+</body>
+</html>
